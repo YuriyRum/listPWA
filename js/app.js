@@ -20,14 +20,15 @@ function openDB(){
 	});	
 };	
 
-function themeClickHandler(e){
-	// do navigation
-	console.log(this);
+function themeClickHandler(index){		
+	this.scope.sharedText.index = index;
+	this.scope.sharedText.text = this.scope.list[index].text;
+	this.location.path("/lists");	
 };
 
 function deleteFromView(){	
-	var scope = this;	
-	scope.list.splice(scope.$index,1);	
+	var scope = this.$parent;		
+	scope.list.splice(this.$index,1);	
 	scope.$apply();
 };	
 
@@ -44,13 +45,12 @@ function createOnView(){
 	scope.$apply();
 };
 
-function themeDelete(index){
-	var itemToBeDeleted = this.item;
-	console.log(this);
-	var scope = this.$parent;
+function themeDelete(index){	
+	var itemToBeDeleted = this.item;	
+	var scope = this;
 	openDB().then(function(request){
 		var db = request.result;
-		var tr = db.transaction("themes",'readwrite');				
+		var tr = db.transaction("themes",'readwrite');					
 		tr.objectStore("themes").delete(itemToBeDeleted.name).onsuccess = deleteFromView.bind(scope);		
 	});	
 };
@@ -58,7 +58,7 @@ function themeDelete(index){
 function createTheme(scope){				
 		scope.newTheme = {
 			name:scope.newThemeName,
-			listOfLists:[]		
+			text:null
 		};
 		
 		openDB().then(function(request){
@@ -68,9 +68,70 @@ function createTheme(scope){
 		});				
 };
 
+function updateTheme(object){
+		openDB().then(function(request){
+			var db = request.result;
+			var tr = db.transaction("themes",'readwrite');														
+			tr.objectStore("themes").put(object);		
+		});				
+};
+
 (function(){
 	"use strict";
-	var app = angular.module("listApp", ["ngTouch","ngAnimate"]);
+	var app = angular.module("listApp", ["ngTouch","ngAnimate","ngRoute"]);
+	
+	app.config(["$routeProvider", function($routeProvider){
+		
+		$routeProvider
+			.when("/themes",{
+				templateUrl: "views/listView.html",
+				controller: "listController"
+			})
+			.when("/lists",{
+				templateUrl: "views/textView.html",
+				controller: "textController"
+			})
+			.otherwise({
+				redirectTo: "/themes"
+			})			
+		
+	}]);
+	
+	app.service("readData", [function(){
+		var that = this;
+		that.read = false;
+		that.data = [];
+		that.getData = new Promise(function(resolve, reject){
+			openDB().then(function(request){
+				// read data at start					
+				var db = request.result;
+				var tr = db.transaction("themes",'readwrite');					
+				
+				return new Promise(function(resolve,reject){
+					tr.objectStore("themes").getAll().onsuccess = function(e){					
+						resolve(e.target.result);
+					};					
+				});	
+			}).then(function(data){	
+				that.read = true;				
+				that.data = data;
+				resolve(true);
+			});	 					
+		});
+		that.getRead = function(){
+			return that.read;
+		};
+		that.getReadData = function(){
+			return that.data;
+		};
+	}]);
+	
+	app.factory("sharedText", function(){
+		return{
+			index:null,
+			text:null			
+		}
+	});
 	
 	app.animation(".slide", [function(){		
 		return {
@@ -83,11 +144,10 @@ function createTheme(scope){
 			}
 		}
 	}]);
-	
+	// enter directive (redefine standard enter action)
 	app.directive("onNewEnter", function(){
 		return function(scope,element,attributes){			
-			element.bind("keydown keypress", function(event){								
-				console.log(event.which);
+			element.bind("keydown keypress", function(event){												
 				if(event.which===13){
 					scope.showPopup = false;		
 					if(scope.newThemeName){
@@ -103,42 +163,51 @@ function createTheme(scope){
 			});
 		};
 	});
-	
-	app.controller("listController", function($scope){		
-		openDB().then(function(request){
-			// read data at start					
-			var db = request.result;
-			var tr = db.transaction("themes",'readwrite');
-			
-			// register event handlers
-			document.getElementById("butAdd").addEventListener("click",function(){							
+	// list view controller
+	app.controller("listController", function($scope, $location, $interval, sharedText, readData){															
+		var promise = new Promise(function(resolve, reject){
+			readData.getData.then(function(){									
+				document.getElementById("butAdd").addEventListener("click",function(){							
+					$scope.$apply(function(){
+						$scope.showPopup = true;				
+						//document.getElementById("newThemeName").focus();
+						//document.getElementById("newThemeName").select();
+						//$("#newTheme").focus();						
+					});			
+				});							
+				
 				$scope.$apply(function(){
-					$scope.showPopup = true;				
-				});			
-			});									
-			
-			return new Promise(function(resolve,reject){
-				tr.objectStore("themes").getAll().onsuccess = function(e){					
-					resolve(e.target.result);
-				};					
-			});	
-		}).then(function(data){	
-			$scope.$apply(function(){
-				$scope.list = data;				
+					$scope.list = readData.getReadData();					
+					resolve(true);
+				});	
 			});			
-		});	    
-		$scope.themeClick = themeClickHandler;	
+		});
+											
+		$scope.$on("$routeChangeSuccess", function(event, current, previous){							
+			promise.then(function(){
+				if(previous&&current.$$route.originalPath==="/themes"&&current.scope.list){				
+					current.scope.list[current.scope.sharedText.index].text = current.scope.sharedText.text;
+					updateTheme({name:current.scope.list[current.scope.sharedText.index].name, text:current.scope.list[current.scope.sharedText.index].text});
+				}; 								
+			});
+		});				
+			
+		$scope.sharedText = sharedText;
+		$scope.themeClick = themeClickHandler.bind({scope:$scope,location:$location});	
 		$scope.showActions = false;
 		$scope.themeDelete = themeDelete;
 		$scope.newThemeName = "";
 		$scope.newTheme = {};
 		$scope.addTheme = function(){
 			this.showPopup = true;
-			this.$apply();
-			alert(this.showPopup);
-		}.bind($scope);
+			this.$apply();			
+		}.bind($scope);		
 	});				
-
+	
+	app.controller("textController", function($scope, $location, sharedText){
+		$scope.sharedText = sharedText;
+	});
+	
 	// register service worker	
 	if("serviceWorker" in navigator){
 		navigator.

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+
+<html>
+	<head>
+		<script>	
+			function loadXML(){
+				var request = new XMLHttpRequest();
+				request.open("GET", "http://sap-prod-app.msk.trd.ru:8000/sap/bc/ui5_ui5/ui2/ushell/chips/applauncher.chip.xml", true);
+								
+				request.onload = function(){
+					
+				};
+			};
+		</script>	
+	</head>
+	<body>
+		<div>
+			<button click="loadXML()">check</button>
+		</div>
+	</body>
+</html>

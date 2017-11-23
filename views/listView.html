@@ -1,0 +1,17 @@
+<header class="header">
+	<h1 class="header__title">List</h1>			
+	<button id="butAdd" class="headerButton" aria-label="Add"></button>
+</header>				
+ <main class="main">			
+	<input id="newTheme" on-new-enter="dummy()" ng-show="showPopup" class="field" type="input" ng-model="newThemeName" ng-focus="showPopup"></input>			
+	<div data-ng-repeat="item in list" 
+	     class="card cardTemplate weather-forecast" ng-animate-swap>      
+	  <div class="location slide" ng-show="!showActions"  ng-click="themeClick($index)" 
+		 ng-swipe-left="showActions = true">				
+		<h3>{{item.name}}</h3>
+	  </div>
+	  <div class="actions slide" ng-show="showActions" ng-swipe-right="showActions = false">
+		<button class="deleteButton" ng-click="themeDelete($index)" aria-label="Delete">Delete</button>
+	  </div>
+	</div>
+</main>					
